@@ -2,6 +2,7 @@ resource "null_resource" "build_image" {
   triggers = {
     dockerfile_path = var.dockerfile_path
     image_tag       = var.image_tag
+    always_run      = timestamp()
   }
 
   provisioner "local-exec" {

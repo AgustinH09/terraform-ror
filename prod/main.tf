@@ -7,12 +7,8 @@ locals {
   ])
 }
 
-data "aws_region" "current" {
-
-}
-
 module "vpc" {
-  source     = "../modules/vpc"
+  source = "../modules/vpc"
 
   cidr_block = local.config.vpc.cidr_block
   vpc_tags = {
@@ -21,7 +17,7 @@ module "vpc" {
 }
 
 module "subnets" {
-  source               = "../modules/subnets"
+  source = "../modules/subnets"
 
   vpc_id               = module.vpc.vpc_id
   ipv6_cidr_block      = module.vpc.ipv6_cidr_block
@@ -42,14 +38,14 @@ module "alb" {
 module "ecr_repository" {
   source = "../modules/ecr"
 
-  repository_name = "ruby-template-ecr"
+  repository_name      = "ruby-template-ecr"
   image_tag_mutability = "MUTABLE"
-  force_delete = true
-  scan_on_push = true
+  force_delete         = true
+  scan_on_push         = true
 
   tags = {
     Environment = "production"
-    Project = "ruby-template"
+    Project     = "ruby-template"
   }
 
   lifecycle_policy = <<EOF
@@ -73,7 +69,7 @@ EOF
 }
 
 module "rds_security_group" {
-  source      = "../modules/sg"
+  source = "../modules/sg"
 
   vpc_id      = module.vpc.vpc_id
   sg_name     = "rds-sg"
@@ -110,32 +106,66 @@ resource "aws_db_subnet_group" "rds" {
 module "rds_database" {
   source = "../modules/rds"
 
-  engine = "postgres"
-  engine_version = "17.2"
-  instance_class = "db.t3.micro"
-  allocated_storage = 20
-  storage_type = "gp2"
-  db_name = "rubyTemplateDatabase"
-  username = "root"
-  password = "rootpasswordchangepls"
-  port = 5432
-  multi_az = false
-  publicly_accessible = false
-  storage_encrypted = true
-  vpc_security_group_ids  = [module.rds_security_group.id]
-  db_subnet_group_name    = aws_db_subnet_group.rds.name
+  engine                 = "postgres"
+  engine_version         = "17.2"
+  instance_class         = "db.t3.micro"
+  allocated_storage      = 20
+  storage_type           = "gp2"
+  db_name                = "rubyTemplateDatabase"
+  username               = "root"
+  password               = "rootpasswordchangepls"
+  port                   = 5432
+  multi_az               = false
+  publicly_accessible    = false
+  storage_encrypted      = true
+  vpc_security_group_ids = [module.rds_security_group.id]
+  db_subnet_group_name   = aws_db_subnet_group.rds.name
 
 
   backup_retention_period = 1
-  backup_window = "07:00-09:00"
-  maintenance_window = "Mon:00:00-Mon:03:00"
-  deletion_protection = false
+  backup_window           = "07:00-09:00"
+  maintenance_window      = "Mon:00:00-Mon:03:00"
+  deletion_protection     = false
   # final_snapshot_identifier = "last-snapshot-${timestamp()}"
-  skip_final_snapshot     = true
+  skip_final_snapshot = true
 
   tags = {
     Environment = "production"
-    Project = "ruby-template"
+    Project     = "ruby-template"
+  }
+}
+
+resource "aws_elasticache_subnet_group" "redis" {
+  name       = "ruby-template-redis-subnet-group"
+  subnet_ids = module.subnets.private_subnet_ids
+
+  tags = {
+    Name = "ruby-template-redis-subnet-group"
+  }
+}
+
+module "elasticache_redis" {
+  source = "../modules/elasticache"
+
+  replication_group_id          = "ruby-template-redis"
+  replication_group_description = "Redis replication group for Ruby Template"
+  engine_version                = "6.x"
+  node_type                     = "cache.t3.micro"
+  automatic_failover_enabled    = false
+  at_rest_encryption_enabled    = false
+  transit_encryption_enabled    = false
+  parameter_group_name          = "default.redis6.x"
+  port                          = 6379
+  subnet_group_name             = aws_elasticache_subnet_group.redis.name
+  security_group_ids            = [module.ecs_instance_sg.id]
+
+  maintenance_window       = "sun:05:00-sun:09:00"
+  snapshot_window          = "09:00-11:00"
+  snapshot_retention_limit = 2
+
+  tags = {
+    Environment = "production"
+    Project     = "ruby-template"
   }
 }
 
@@ -166,17 +196,19 @@ module "ecs" {
   container_port   = 80
   host_port        = 80
 
-  build_image         = true
-  push_image          = true
-  dockerfile_path     = "../app"
-  image_tag           = "ruby-template-image:latest"
-  ecr_repository_url  = module.ecr_repository.repository_url
-  image_uri           = ""
+  build_image        = true
+  push_image         = true
+  dockerfile_path    = "../app"
+  image_tag          = "ruby-template-image:latest"
+  ecr_repository_url = module.ecr_repository.repository_url
+  image_uri          = ""
 
-  rails_master_key    = file("../app/config/master.key")
-  secret_key_base     = var.secret_key_base
-  database_url        = "postgres://root:rootpasswordchangepls@${module.rds_database.db_endpoint}:5432/rubyTemplateDatabase"
-  log_group_name      = module.ecs_logs.name
+  rails_master_key = file("../app/config/master.key")
+  secret_key_base  = var.secret_key_base
+  database_url     = "postgres://root:rootpasswordchangepls@${module.rds_database.db_endpoint}/rubyTemplateDatabase"
+  redis_url        = "redis://${module.elasticache_redis.cache_endpoint}:6379"
+
+  log_group_name = module.ecs_logs.name
 
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 200
@@ -185,7 +217,7 @@ module "ecs" {
 }
 
 module "ecs_instance_sg" {
-  source      = "../modules/sg"
+  source = "../modules/sg"
 
   vpc_id      = module.vpc.vpc_id
   sg_name     = "ecs-instance-sg"
@@ -213,25 +245,28 @@ module "ecs_instance_sg" {
 }
 
 module "ecs_instances" {
-  source           = "../modules/auto_scaling_group"
+  source = "../modules/auto_scaling_group"
 
-  vpc_id           = module.vpc.vpc_id
-  subnet_ids       = module.subnets.public_subnet_ids
-  ecs_cluster_name = module.ecs.cluster_name
-  desired_capacity = 1
-  min_size         = 1
-  max_size         = 2
+  vpc_id            = module.vpc.vpc_id
+  subnet_ids        = module.subnets.public_subnet_ids
+  ecs_cluster_name  = module.ecs.cluster_name
+  desired_capacity  = 1
+  min_size          = 1
+  max_size          = 2
   security_group_id = module.ecs_instance_sg.id
 
   depends_on = [module.ecs_instance_sg]
 }
 
-resource "aws_security_group_rule" "allow_ecs_to_db" {
+module "sg_rule_allow_ecs_to_db" {
+  source = "../modules/sg_rule"
+
+  description              = "Allow ECS instances to connect to the RDS database"
   type                     = "ingress"
   from_port                = 5432
   to_port                  = 5432
   protocol                 = "tcp"
-  security_group_id        = module.rds_security_group.id        # The DB SG
-  source_security_group_id = module.ecs_instance_sg.id  # The ECS tasks’ SG
+  security_group_id        = module.rds_security_group.id
+  source_security_group_id = module.ecs_instance_sg.id
 }
 

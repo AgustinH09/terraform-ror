@@ -130,6 +130,12 @@ variable "database_url" {
   sensitive   = true
 }
 
+variable "redis_url" {
+  description = "The connection string for the Redis server to be used by the application."
+  type        = string
+  sensitive   = true
+}
+
 variable "alb_target_group_arn" {
   description = "The ARN of the target group to attach to the ECS service"
   type        = string

@@ -3,6 +3,7 @@ resource "null_resource" "push" {
   triggers = {
     image_tag          = var.image_tag
     ecr_repository_url = var.ecr_repository_url
+    always_run         = timestamp()
   }
 
   provisioner "local-exec" {

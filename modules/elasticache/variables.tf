@@ -76,12 +76,6 @@ variable "transit_encryption_enabled" {
   default     = false
 }
 
-variable "number_cache_clusters" {
-  description = "The number of cache clusters (nodes) in the Redis replication group."
-  type        = number
-  default     = 1
-}
-
 variable "snapshot_window" {
   description = "The daily time range (in UTC) during which a snapshot is taken (Redis only)."
   type        = string

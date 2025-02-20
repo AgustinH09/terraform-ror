@@ -4,6 +4,7 @@ module "build_image" {
 
   dockerfile_path = var.dockerfile_path
   image_tag       = var.image_tag
+  database_url    = var.database_url
 }
 
 module "push_image" {
@@ -13,6 +14,8 @@ module "push_image" {
   aws_region         = var.aws_region
   image_tag          = var.image_tag
   ecr_repository_url = var.ecr_repository_url
+
+  depends_on = [module.build_image]
 }
 
 locals {
@@ -23,7 +26,7 @@ resource "aws_iam_role" "ecs_task_execution_role" {
   name = "${var.cluster_name}-ecsTaskExecutionRole"
 
   assume_role_policy = jsonencode({
-    Version   = "2012-10-17",
+    Version = "2012-10-17",
     Statement = [{
       Effect    = "Allow",
       Principal = { Service = "ecs-tasks.amazonaws.com" },
@@ -41,7 +44,7 @@ resource "aws_iam_role" "ecs_task_role" {
   name = "${var.cluster_name}-ecsTaskRole"
 
   assume_role_policy = jsonencode({
-    Version   = "2012-10-17",
+    Version = "2012-10-17",
     Statement = [{
       Effect    = "Allow",
       Principal = { Service = "ecs-tasks.amazonaws.com" },
@@ -52,6 +55,11 @@ resource "aws_iam_role" "ecs_task_role" {
 
 resource "aws_ecs_cluster" "this" {
   name = var.cluster_name
+
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
 }
 
 resource "aws_ecs_task_definition" "this" {
@@ -66,10 +74,10 @@ resource "aws_ecs_task_definition" "this" {
 
   container_definitions = jsonencode([
     {
-      name         = var.container_name
-      image        = local.final_image
-      cpu          = var.container_cpu
-      memory       = var.container_memory
+      name   = var.container_name
+      image  = local.final_image
+      cpu    = var.container_cpu
+      memory = var.container_memory
       portMappings = [
         {
           containerPort = var.container_port
@@ -78,18 +86,19 @@ resource "aws_ecs_task_definition" "this" {
         }
       ]
       environment = [
-        { name = "RAILS_ENV",         value = "production" },
-        { name = "RAILS_MASTER_KEY",    value = var.rails_master_key },
-        { name = "SECRET_KEY_BASE",     value = var.secret_key_base },
-        { name = "DATABASE_URL",        value = var.database_url }
+        { name = "RAILS_ENV", value = "production" },
+        { name = "RAILS_MASTER_KEY", value = var.rails_master_key },
+        { name = "SECRET_KEY_BASE", value = var.secret_key_base },
+        { name = "DATABASE_URL", value = var.database_url },
+        { name = "REDIS_URL", value = var.redis_url }
       ],
-      essential    = true,
+      essential = true,
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          "awslogs-group"        = var.log_group_name
-          "awslogs-region"       = var.aws_region
-          "awslogs-stream-prefix"= var.service_name
+          "awslogs-group"         = var.log_group_name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = var.service_name
         }
       }
     }

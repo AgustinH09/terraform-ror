@@ -24,6 +24,6 @@ output "alb_listener_port" {
 
 output "cloudwatch_log_group_name" {
   description = "The name of the CloudWatch log group."
-  value = module.ecs_logs.name
+  value       = module.ecs_logs.name
 }
 

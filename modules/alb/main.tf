@@ -5,6 +5,7 @@ resource "aws_lb" "app_lb" {
   security_groups    = [aws_security_group.alb_sg.id]
   subnets            = var.subnet_ids
 
+  drop_invalid_header_fields = true
   enable_deletion_protection = false
 }
 
@@ -35,9 +36,9 @@ resource "aws_lb_target_group" "app_tg" {
   vpc_id   = var.vpc_id
 
   health_check {
-    enabled             = true
-    interval            = 30
-    path                = "/"
+    enabled  = true
+    interval = 30
+    path     = "/"
     # protocol            = "HTTP"
     timeout             = 5
     healthy_threshold   = 2

@@ -1,16 +1,11 @@
 locals {
   config = jsondecode(file("${path.module}/config.json"))
-
-  total_public_instances = sum([
-    for instance in local.config.web_service.instances :
-    instance.instance_count if instance.public
-  ])
 }
 
 module "vpc" {
   source = "../modules/vpc"
 
-  cidr_block = local.config.vpc.cidr_block
+  cidr_block = "10.0.0.0/16"
   vpc_tags = {
     Name = "Ruby-Template-VPC"
   }
